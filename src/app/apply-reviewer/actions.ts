@@ -9,7 +9,8 @@ interface ApplicationData {
   institution: string | null;
   yearsPractice: number | null;
   licenseOrNPI: string | null;
-  justification: string;
+  qualifications: string;
+  justification: string | null;
 }
 
 interface ApplicationResult {
@@ -53,6 +54,7 @@ export async function submitReviewerApplication(data: ApplicationData): Promise<
         institution: data.institution,
         yearsPractice: data.yearsPractice,
         licenseOrNPI: data.licenseOrNPI,
+        qualifications: data.qualifications,
         justification: data.justification,
         status: 'PENDING',
       },
@@ -73,6 +75,7 @@ export async function submitReviewerApplication(data: ApplicationData): Promise<
       specialty: data.specialty,
       institution: data.institution,
       yearsPractice: data.yearsPractice,
+      qualifications: data.qualifications,
       justification: data.justification,
     });
 
@@ -94,7 +97,8 @@ interface NotificationData {
   specialty: string;
   institution: string | null;
   yearsPractice: number | null;
-  justification: string;
+  qualifications: string;
+  justification: string | null;
 }
 
 async function sendAdminNotification(data: NotificationData): Promise<void> {
@@ -161,8 +165,12 @@ async function sendAdminNotification(data: NotificationData): Promise<void> {
             ` : ''}
           </table>
           
-          <h3>Justification</h3>
+          <h3>Qualifications</h3>
+          <p style="background: #f5f5f5; padding: 12px; border-radius: 4px;">${data.qualifications}</p>
+          ${data.justification ? `
+          <h3>Motivation</h3>
           <p style="background: #f5f5f5; padding: 12px; border-radius: 4px;">${data.justification}</p>
+          ` : ''}
           
           <p style="margin-top: 24px;">
             <a href="${reviewUrl}" style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px;">
@@ -184,8 +192,11 @@ Specialty: ${data.specialty}
 ${data.institution ? `Institution: ${data.institution}` : ''}
 ${data.yearsPractice ? `Years Experience: ${data.yearsPractice}` : ''}
 
-Justification:
-${data.justification}
+Qualifications:
+${data.qualifications}
+${data.justification ? `
+Motivation:
+${data.justification}` : ''}
 
 Review this application at: ${reviewUrl}
         `,
@@ -206,7 +217,8 @@ Review this application at: ${reviewUrl}
     console.log(`Specialty: ${data.specialty}`);
     if (data.institution) console.log(`Institution: ${data.institution}`);
     if (data.yearsPractice) console.log(`Years Experience: ${data.yearsPractice}`);
-    console.log(`Justification: ${data.justification}`);
+    console.log(`Qualifications: ${data.qualifications}`);
+    if (data.justification) console.log(`Motivation: ${data.justification}`);
     console.log(`Review URL: ${reviewUrl}`);
     console.log('========================================\n');
   }
