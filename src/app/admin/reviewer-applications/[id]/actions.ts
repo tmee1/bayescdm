@@ -120,9 +120,9 @@ async function assignReviewersToPendingAnalyses(): Promise<void> {
             analysisId: analysis.id,
             reviewerId: reviewer.id,
             decision: null,
-            structuredFlags: null,
-            comments: null,
+            feedback: null,
           },
+        });
         });
       }
 
