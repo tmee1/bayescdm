@@ -248,6 +248,7 @@ function computeLRsFromBinCounts(
     const result = computeLRFrom2x2(row.tp, row.fp, row.fn, row.tn, useContinuityCorrection);
     return {
       binLabel: row.binLabel,
+      lr: result.lrPositive, // Use LR+ as the primary LR for bin
       lrPositive: result.lrPositive,
       lrNegative: result.lrNegative,
       warning: result.warnings.length > 0 ? result.warnings.join('; ') : undefined,
