@@ -40,14 +40,17 @@ interface TreatmentData {
   controlEvents: string;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 interface SubmissionData {
   category: 'DIAGNOSTIC' | 'TREATMENT';
   citation: CitationData;
   pico: PICOData;
   diagnosticMode?: 'single_cutoff' | 'multi_interval' | null;
   diagnosticIntervals?: DiagnosticInterval[];
-  treatmentData?: TreatmentData;
+  diagnosticDataOutput?: any; // From diagnostic workflow component
+  treatmentData?: TreatmentData | any;
   quadas2Data?: QUADAS2Data;
+  qualityData?: any; // From quality assessment component
   summary: string;
 }
 
