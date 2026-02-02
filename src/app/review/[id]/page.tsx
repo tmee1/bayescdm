@@ -184,8 +184,8 @@ export default async function ReviewDetailPage({
                         const totalDisease = interval.truePositives + interval.falseNegatives;
                         const totalNonDisease = interval.falsePositives + interval.trueNegatives;
                         if (totalDisease > 0 && totalNonDisease > 0) {
-                          const sensitivity = interval.tp / totalDisease;
-                          const fpRate = interval.fp / totalNonDisease;
+                          const sensitivity = interval.truePositives / totalDisease;
+                          const fpRate = interval.falsePositives / totalNonDisease;
                           const lr = fpRate > 0 ? sensitivity / fpRate : Infinity;
                           return (
                             <div className="mt-3 pt-3 border-t">
