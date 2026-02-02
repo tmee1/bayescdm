@@ -269,7 +269,6 @@ export async function submitAnalysis(data: SubmissionData): Promise<SubmissionRe
           armType: 'INTERVENTION',
           nTotal: parseInt(data.treatmentData.interventionTotal, 10),
           nEvents: parseInt(data.treatmentData.interventionEvents, 10),
-          nHarms: null,
         },
       });
 
@@ -282,7 +281,6 @@ export async function submitAnalysis(data: SubmissionData): Promise<SubmissionRe
           armType: 'CONTROL',
           nTotal: parseInt(data.treatmentData.controlTotal, 10),
           nEvents: parseInt(data.treatmentData.controlEvents, 10),
-          nHarms: null,
         },
       });
     }
