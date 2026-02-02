@@ -344,6 +344,7 @@ export function DiagnosticDataWorkflow({ value, directionality, onChange }: Diag
 
         results = [{
           binLabel: sensSpec.cutoffValue || 'Single cutoff',
+          lr: result.lrPositive,
           lrPositive: result.lrPositive,
           lrNegative: result.lrNegative,
         }];
@@ -376,6 +377,7 @@ export function DiagnosticDataWorkflow({ value, directionality, onChange }: Diag
           warnings.push(...result.warnings);
           results = [{
             binLabel: row.cutoff,
+            lr: result.lrPositive,
             lrPositive: result.lrPositive,
             lrNegative: result.lrNegative,
           }];
