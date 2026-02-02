@@ -123,7 +123,6 @@ async function assignReviewersToPendingAnalyses(): Promise<void> {
             feedback: null,
           },
         });
-        });
       }
 
       console.log(`Assigned reviewers to analysis ${analysis.id}`);
