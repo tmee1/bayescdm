@@ -1,0 +1,600 @@
+// Bayes at the Bedside - Clinical Evidence Appraisal Database Schema
+// This schema supports structured clinical study analysis with Bayesian outputs
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")       // Pooled connection (for queries)
+  directUrl = env("DIRECT_URL")         // Direct connection (for migrations)
+}
+
+// ============================================================================
+// AUTHENTICATION & USER MANAGEMENT
+// ============================================================================
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  
+  // Role-based access (permissions)
+  // UserRole enum: USER, REVIEWER, MODERATOR, ADMIN
+  role          String    @default("USER")
+  
+  // Account tier (subscription/status - does NOT affect permissions)
+  // AccountTier enum: USER, CONTRIBUTOR
+  // Users become CONTRIBUTOR when they get a verified analysis
+  accountTier   String    @default("USER")
+  
+  // Reviewer status (separate from role to track application flow)
+  // ReviewerStatus enum: NONE, APPLIED, APPROVED, DENIED
+  reviewerStatus String   @default("NONE")
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Auth.js relations
+  accounts      Account[]
+  sessions      Session[]
+  
+  // Application relations
+  reviewerApplication ReviewerApplication?
+  submittedAnalyses   Analysis[] @relation("SubmittedAnalyses")
+  assignedReviews     Review[]
+  
+  // Review feedback (notifications)
+  receivedFeedback    ReviewFeedback[] @relation("ReceivedFeedback")
+  givenFeedback       ReviewFeedback[] @relation("GivenFeedback")
+  
+  // Moderator actions
+  createdSynonyms     Synonym[]
+  createdPooledEstimates PooledEstimate[]
+  auditLogs           AuditLog[]
+
+  @@index([email])
+  @@index([role])
+  @@index([accountTier])
+  @@index([reviewerStatus])
+}
+
+// Auth.js required models
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ============================================================================
+// REVIEWER APPLICATION
+// ============================================================================
+
+model ReviewerApplication {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Credentials (structured)
+  clinicalRole    String   // e.g., "Attending Physician", "Resident", "APP"
+  specialty       String   // e.g., "Internal Medicine", "Critical Care"
+  yearsPractice   Int?
+  institution     String?
+  licenseOrNPI    String?
+  
+  // Application content
+  qualifications  String   // Training, experience, expertise in critical appraisal
+  justification   String?  // Optional motivation/interest
+  
+  // Status and review
+  status          String   @default("PENDING") // ApplicationStatus: PENDING, APPROVED, DENIED
+  reviewerNotes   String?
+  reviewedAt      DateTime?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status])
+}
+
+// ============================================================================
+// STUDY & CITATION
+// ============================================================================
+
+model Study {
+  id              String   @id @default(cuid())
+  
+  // Citation metadata
+  title           String
+  authors         String   // Stored as formatted string (e.g., "Smith J, Jones B, et al.")
+  journal         String
+  year            Int
+  
+  // Identifiers
+  doi             String?  @unique
+  pmid            String?  @unique
+  url             String?
+  
+  // Classification
+  // NOTE: In PostgreSQL this would be String[]. For SQLite, stored as JSON string.
+  clinicalDomains String?  // JSON array: e.g., '["Hospital Medicine", "ICU"]'
+  studyDesign     String?  // StudyDesign enum
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  analyses        Analysis[]
+
+  @@index([doi])
+  @@index([pmid])
+  @@index([year])
+}
+
+// ============================================================================
+// ANALYSIS (Core entity for study appraisals)
+// ============================================================================
+
+model Analysis {
+  id              String   @id @default(cuid())
+  
+  // Link to study
+  studyId         String
+  study           Study    @relation(fields: [studyId], references: [id], onDelete: Cascade)
+  
+  // Category determines which detail model is used
+  category        String   // AnalysisCategory: DIAGNOSTIC, TREATMENT, PROGNOSIS, PREDICTION_RULE, OTHER
+  
+  // Workflow status
+  status          String   @default("DRAFT") // AnalysisStatus: DRAFT, PENDING_REVIEW, VERIFIED, REJECTED, NEEDS_REVISION
+  version         Int      @default(1)
+  
+  // Submitter
+  createdByUserId String
+  createdBy       User     @relation("SubmittedAnalyses", fields: [createdByUserId], references: [id])
+  
+  // PICO elements (structured)
+  population      String   // Structured description
+  intervention    String?  // For treatment; null for diagnostic
+  testName        String?  // For diagnostic
+  comparator      String?
+  outcome         String
+  setting         String?  // e.g., "Emergency Department", "ICU", "Outpatient"
+  
+  // Brief summary (character-limited in UI)
+  narrativeSummary String?
+  
+  // Applicability notes (structured checkboxes stored as JSON + short text)
+  applicabilityNotes String? // JSON object
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  diagnosticDetails DiagnosticDetails?
+  treatmentDetails  TreatmentDetails?
+  qualityAssessment QualityAssessment?
+  reviews           Review[]
+  reviewFeedback    ReviewFeedback[]
+  tags              AnalysisTag[]
+  pooledEstimateMembers PooledEstimateMember[]
+  auditLogs         AuditLog[]
+
+  @@index([studyId])
+  @@index([category])
+  @@index([status])
+  @@index([createdByUserId])
+}
+
+// ============================================================================
+// DIAGNOSTIC DETAILS
+// ============================================================================
+
+model DiagnosticDetails {
+  id              String   @id @default(cuid())
+  
+  analysisId      String   @unique
+  analysis        Analysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  
+  // Canonical terms for searchability
+  testNameCanonicalId     String?
+  testNameCanonical       CanonicalTerm? @relation("TestName", fields: [testNameCanonicalId], references: [id])
+  
+  conditionCanonicalId    String?
+  conditionCanonical      CanonicalTerm? @relation("Condition", fields: [conditionCanonicalId], references: [id])
+  
+  // Reference standard details
+  referenceStandard       String
+  referenceStandardType   String?  // e.g., "Gold standard", "Composite", "Clinical follow-up"
+  
+  // Whether this analysis has multiple intervals or binary
+  hasIntervals    Boolean  @default(false)
+  
+  // Explicit diagnostic mode: 'single_cutoff' or 'multi_interval'
+  diagnosticMode  String   @default("single_cutoff")
+  
+  // Additional notes
+  notes           String?
+  
+  // Relations
+  intervals       DiagnosticInterval[]
+
+  @@index([testNameCanonicalId])
+  @@index([conditionCanonicalId])
+}
+
+model DiagnosticInterval {
+  id                    String   @id @default(cuid())
+  
+  diagnosticDetailsId   String
+  diagnosticDetails     DiagnosticDetails @relation(fields: [diagnosticDetailsId], references: [id], onDelete: Cascade)
+  
+  // Interval definition
+  label                 String   // e.g., "< 0.1 ng/mL", "0.1-0.25 ng/mL", ">= 0.25 ng/mL"
+  sortOrder             Int      @default(0)
+  
+  // Bounds (for structured intervals)
+  lowerBound            Float?
+  upperBound            Float?
+  lowerInclusive        Boolean  @default(true)
+  upperInclusive        Boolean  @default(false)
+  unit                  String?  // e.g., "ng/mL", "mg/dL"
+  
+  // 2x2 table data (REQUIRED - all calculations derive from this)
+  truePositives         Int
+  falsePositives        Int
+  falseNegatives        Int
+  trueNegatives         Int
+  
+  // Cached computed values (recomputed on read; stored for performance)
+  cachedLR              Float?
+  cachedLRLowerCI       Float?
+  cachedLRUpperCI       Float?
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([diagnosticDetailsId])
+}
+
+// ============================================================================
+// TREATMENT DETAILS
+// ============================================================================
+
+model TreatmentDetails {
+  id              String   @id @default(cuid())
+  
+  analysisId      String   @unique
+  analysis        Analysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  
+  // Canonical terms
+  interventionCanonicalId String?
+  interventionCanonical   CanonicalTerm? @relation("Intervention", fields: [interventionCanonicalId], references: [id])
+  
+  comparatorCanonicalId   String?
+  comparatorCanonical     CanonicalTerm? @relation("Comparator", fields: [comparatorCanonicalId], references: [id])
+  
+  outcomeCanonicalId      String?
+  outcomeCanonical        CanonicalTerm? @relation("Outcome", fields: [outcomeCanonicalId], references: [id])
+  
+  // Follow-up
+  followUpValue           Float?
+  followUpUnit            String?  // e.g., "days", "months", "years"
+  
+  // Outcome type
+  outcomeType             String   @default("EFFICACY") // OutcomeType: EFFICACY, HARM
+  
+  // Additional notes
+  notes                   String?
+  
+  // Relations
+  arms                    TreatmentArm[]
+
+  @@index([interventionCanonicalId])
+  @@index([outcomeCanonicalId])
+}
+
+model TreatmentArm {
+  id                  String   @id @default(cuid())
+  
+  treatmentDetailsId  String
+  treatmentDetails    TreatmentDetails @relation(fields: [treatmentDetailsId], references: [id], onDelete: Cascade)
+  
+  // Arm identification
+  armType             String   // ArmType: INTERVENTION, CONTROL
+  armLabel            String?  // Optional custom label
+  
+  // Event data
+  nTotal              Int      // Total participants in arm
+  nEvents             Int      // Number experiencing the outcome
+  
+  // Optional: separate harm tracking (v2 could expand this)
+  nHarmEvents         Int?
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([treatmentDetailsId])
+}
+
+// ============================================================================
+// QUALITY ASSESSMENT
+// ============================================================================
+
+model QualityAssessment {
+  id              String   @id @default(cuid())
+  
+  analysisId      String   @unique
+  analysis        Analysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  
+  // Assessment type based on study design
+  assessmentType  String   // QualityAssessmentType: QUADAS2, ROB2, ROBINS_I, OTHER
+  
+  // Structured domain assessments (stored as JSON)
+  domains         String   // JSON object
+  
+  // Overall risk assessment
+  overallRisk     String   @default("UNCLEAR") // RiskLevel: LOW, SOME_CONCERNS, HIGH, UNCLEAR
+  
+  // Applicability concerns
+  applicability   String   @default("SOME_CONCERNS") // ApplicabilityLevel: LOW_CONCERN, SOME_CONCERNS, HIGH_CONCERN
+  
+  // Generated summary (computed + can be edited)
+  generatedSummary String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ============================================================================
+// REVIEW WORKFLOW
+// ============================================================================
+
+model Review {
+  id              String   @id @default(cuid())
+  
+  analysisId      String
+  analysis        Analysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  
+  reviewerId      String
+  reviewer        User     @relation(fields: [reviewerId], references: [id])
+  
+  // Review decision: APPROVE, APPROVE_WITH_EDITS, REJECT
+  // null = not yet reviewed
+  decision        String?
+  
+  // Feedback text (required for APPROVE_WITH_EDITS and REJECT, optional for APPROVE)
+  feedback        String?
+  
+  // Review order (1st or 2nd reviewer)
+  reviewOrder     Int      @default(1)
+  
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([analysisId, reviewerId])
+  @@index([analysisId])
+  @@index([reviewerId])
+  @@index([decision])
+}
+
+// Notification sent to submitter when reviews are complete
+model ReviewFeedback {
+  id              String   @id @default(cuid())
+  
+  analysisId      String
+  analysis        Analysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  
+  // The submitter who receives this feedback
+  submitterId     String
+  submitter       User     @relation("ReceivedFeedback", fields: [submitterId], references: [id])
+  
+  // The reviewer who provided this feedback
+  reviewerId      String
+  reviewerUser    User     @relation("GivenFeedback", fields: [reviewerId], references: [id])
+  
+  // The decision and feedback text
+  decision        String   // APPROVE, APPROVE_WITH_EDITS, REJECT
+  feedbackText    String?
+  
+  // Whether the submitter has read this feedback
+  isRead          Boolean  @default(false)
+  
+  createdAt       DateTime @default(now())
+
+  @@index([analysisId])
+  @@index([submitterId])
+  @@index([isRead])
+}
+
+// ============================================================================
+// CANONICAL TERMS & SYNONYMS
+// ============================================================================
+
+model CanonicalTerm {
+  id          String   @id @default(cuid())
+  
+  type        String   // TermType: TEST, CONDITION, INTERVENTION, COMPARATOR, OUTCOME, OTHER
+  name        String   // Canonical name
+  description String?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  synonyms    Synonym[]
+  
+  // Usage relations
+  diagnosticTests      DiagnosticDetails[] @relation("TestName")
+  diagnosticConditions DiagnosticDetails[] @relation("Condition")
+  treatmentInterventions TreatmentDetails[] @relation("Intervention")
+  treatmentComparators   TreatmentDetails[] @relation("Comparator")
+  treatmentOutcomes      TreatmentDetails[] @relation("Outcome")
+
+  @@unique([type, name])
+  @@index([type])
+  @@index([name])
+}
+
+model Synonym {
+  id              String   @id @default(cuid())
+  
+  canonicalTermId String
+  canonicalTerm   CanonicalTerm @relation(fields: [canonicalTermId], references: [id], onDelete: Cascade)
+  
+  synonymText     String
+  
+  createdByUserId String?
+  createdBy       User?    @relation(fields: [createdByUserId], references: [id])
+  
+  createdAt       DateTime @default(now())
+
+  @@unique([canonicalTermId, synonymText])
+  @@index([synonymText])
+}
+
+// ============================================================================
+// ANALYSIS TAGS
+// ============================================================================
+
+model Tag {
+  id          String   @id @default(cuid())
+  
+  category    String   // TagCategory: POPULATION, SETTING, MODIFIER
+  name        String
+  
+  createdAt   DateTime @default(now())
+  
+  analyses    AnalysisTag[]
+
+  @@unique([category, name])
+  @@index([category])
+}
+
+model AnalysisTag {
+  id          String   @id @default(cuid())
+  
+  analysisId  String
+  analysis    Analysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  
+  tagId       String
+  tag         Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([analysisId, tagId])
+}
+
+// ============================================================================
+// POOLED ESTIMATES (Moderator-curated)
+// ============================================================================
+
+model PooledEstimate {
+  id              String   @id @default(cuid())
+  
+  type            String   // AnalysisCategory
+  
+  // For diagnostic: test + condition
+  testCanonicalId      String?
+  conditionCanonicalId String?
+  
+  // For treatment: intervention + outcome
+  interventionCanonicalId String?
+  outcomeCanonicalId      String?
+  
+  // Pooling method
+  method          String   @default("FIXED_EFFECT") // PoolingMethod: FIXED_EFFECT, RANDOM_EFFECTS
+  
+  // Moderator who created
+  createdByUserId String
+  createdBy       User     @relation(fields: [createdByUserId], references: [id])
+  
+  // Justification and notes
+  justification   String
+  notes           String?
+  
+  // Versioning
+  version         Int      @default(1)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  members         PooledEstimateMember[]
+
+  @@index([type])
+  @@index([testCanonicalId, conditionCanonicalId])
+  @@index([interventionCanonicalId, outcomeCanonicalId])
+}
+
+model PooledEstimateMember {
+  id                String   @id @default(cuid())
+  
+  pooledEstimateId  String
+  pooledEstimate    PooledEstimate @relation(fields: [pooledEstimateId], references: [id], onDelete: Cascade)
+  
+  analysisId        String
+  analysis          Analysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  
+  // For diagnostic: which intervals are included and how they map
+  intervalMapping   String?  // JSON: e.g., { "localIntervalId": "pooledIntervalLabel" }
+  
+  createdAt         DateTime @default(now())
+
+  @@unique([pooledEstimateId, analysisId])
+}
+
+// ============================================================================
+// AUDIT LOG
+// ============================================================================
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  
+  analysisId  String?
+  analysis    Analysis? @relation(fields: [analysisId], references: [id], onDelete: SetNull)
+  
+  action      String   // e.g., "SUBMIT", "REVIEW", "VERIFY", "REVISION"
+  details     String?  // JSON: Detailed change information
+  
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([analysisId])
+  @@index([action])
+  @@index([createdAt])
+}
