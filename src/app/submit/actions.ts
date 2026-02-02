@@ -208,12 +208,12 @@ export async function submitAnalysis(data: SubmissionData): Promise<SubmissionRe
       // Store QUADAS-2 assessment if provided
       if (data.quadas2Data) {
         // Derive overall risk from domain judgments
-        const domainRisks = [
+        const domainRisks: string[] = [
           data.quadas2Data.patientSelection.riskOfBias,
           data.quadas2Data.indexTest.riskOfBias,
           data.quadas2Data.referenceStandard.riskOfBias,
           data.quadas2Data.flowAndTiming.riskOfBias,
-        ];
+        ].filter((r): r is string => r !== undefined && r !== null);
 
         let overallRisk = 'LOW';
         if (domainRisks.includes('HIGH')) {
@@ -222,11 +222,11 @@ export async function submitAnalysis(data: SubmissionData): Promise<SubmissionRe
           overallRisk = 'SOME_CONCERNS';
         }
 
-        const applicabilityConcerns = [
+        const applicabilityConcerns: string[] = [
           data.quadas2Data.patientSelection.applicabilityConcern,
           data.quadas2Data.indexTest.applicabilityConcern,
           data.quadas2Data.referenceStandard.applicabilityConcern,
-        ];
+        ].filter((c): c is string => c !== undefined && c !== null);
 
         let overallApplicability = 'LOW_CONCERN';
         if (applicabilityConcerns.includes('HIGH')) {
