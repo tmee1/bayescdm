@@ -616,7 +616,7 @@ export function TreatmentDataWorkflow({ value, onChange }: TreatmentDataWorkflow
   const addOutcome = (priority: OutcomePriority) => {
     const newOutcome = createEmptyOutcomeDefinition(priority);
     const newOutcomeData = createEmptyOutcomeData(newOutcome.id);
-    setExpandedOutcomes(prev => new Set([...prev, newOutcome.id]));
+    setExpandedOutcomes(prev => new Set([...Array.from(prev), newOutcome.id]));
     onChange({
       ...dataEntry,
       outcomes: [...dataEntry.outcomes, newOutcome],
