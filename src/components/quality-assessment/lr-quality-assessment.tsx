@@ -1695,5 +1695,3 @@ export function createEmptyLRQualityAssessmentData(): LRQualityAssessmentData {
     },
   };
 }
-
-export type { LRQualityAssessmentData, LRValidityProfile };
