@@ -323,6 +323,7 @@ export function DiagnosticDataWorkflow({ value, directionality, onChange }: Diag
         
         results = [{
           binLabel: twoByTwo.cutoffLabel || 'Binary result',
+          lr: result.lrPositive,
           lrPositive: result.lrPositive,
           lrNegative: result.lrNegative,
         }];
