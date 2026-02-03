@@ -358,13 +358,17 @@ export function computeLRValidityProfile(
     if (topWarnings.length > 0) {
       summaryParagraph += topWarnings.join(' ') + ' ';
     }
-    if (internalValidity === 'low') {
+    // Check validity levels and add appropriate message
+    const ivLevel = internalValidity as string;
+    const tLevel = transportability as string;
+    
+    if (ivLevel === 'low') {
       summaryParagraph += 'Overall internal validity is LOW, suggesting significant bias risk.';
-    } else if (transportability === 'low') {
+    } else if (tLevel === 'low') {
       summaryParagraph += 'Transportability to other settings may be limited.';
-    } else if (internalValidity === 'moderate') {
+    } else if (ivLevel === 'moderate') {
       summaryParagraph += 'Internal validity is moderate; consider potential bias sources.';
-    } else if (transportability === 'moderate') {
+    } else if (tLevel === 'moderate') {
       summaryParagraph += 'Consider transportability when applying LRs to your clinical context.';
     } else {
       summaryParagraph += 'Consider these factors when applying LRs to clinical decisions.';
