@@ -588,18 +588,22 @@ export function computeTreatmentValidityProfile(
     summaryParagraph = 'The treatment effect estimates from this study appear methodologically sound with good internal validity and transportability. Standard caution in clinical application is still advised.';
   } else {
     // Sentence 1: overall validity/transportability statement
-    if (internalValidity === 'low') {
+    // Cast to string to avoid TypeScript type narrowing issues
+    const ivLevel = internalValidity as string;
+    const tLevel = transportability as string;
+    
+    if (ivLevel === 'low') {
       summaryParagraph = 'Internal validity is LOW, indicating significant bias risk. ';
-    } else if (internalValidity === 'moderate') {
+    } else if (ivLevel === 'moderate') {
       summaryParagraph = 'Internal validity is MODERATE; some bias concerns exist. ';
     } else {
       summaryParagraph = 'Internal validity is acceptable. ';
     }
 
     // Transportability
-    if (transportability === 'low') {
+    if (tLevel === 'low') {
       summaryParagraph += 'Transportability to other settings is LIMITED. ';
-    } else if (transportability === 'moderate') {
+    } else if (tLevel === 'moderate') {
       summaryParagraph += 'Transportability may be limited. ';
     }
 
