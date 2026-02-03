@@ -86,19 +86,12 @@ export const {
       }),
     ] : []),
     // Email provider for production (or as fallback in dev)
-    ...(isDevelopment ? [] : [
+    ...(process.env.EMAIL_SERVER ? [
       EmailProvider({
-        server: {
-          host: process.env.EMAIL_SERVER_HOST,
-          port: Number(process.env.EMAIL_SERVER_PORT) || 587,
-          auth: {
-            user: process.env.EMAIL_SERVER_USER,
-            pass: process.env.EMAIL_SERVER_PASSWORD,
-          },
-        },
+        server: process.env.EMAIL_SERVER,
         from: process.env.EMAIL_FROM || 'noreply@bayes-bedside.com',
       }),
-    ]),
+    ] : []),
   ],
   session: {
     // Use JWT for credentials provider (required for CredentialsProvider)
