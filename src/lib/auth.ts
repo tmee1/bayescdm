@@ -39,7 +39,9 @@ export const {
   signOut,
 } = NextAuth({
   // Always include adapter - required for EmailProvider
-  adapter: PrismaAdapter(prisma),
+  // Cast to any to avoid type mismatch with custom User fields
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  adapter: PrismaAdapter(prisma) as any,
   providers: [
     // Credentials provider for development testing (must be first for dev)
     ...(isDevelopment ? [
