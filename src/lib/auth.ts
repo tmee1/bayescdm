@@ -1,8 +1,8 @@
 import NextAuth from 'next-auth';
 import { PrismaAdapter } from '@auth/prisma-adapter';
-import EmailProvider from 'next-auth/providers/email';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { prisma } from '@/lib/db';
+import { Resend } from 'resend';
 
 // Define types (using strings since SQLite doesn't support enums)
 type UserRole = 'USER' | 'REVIEWER' | 'MODERATOR' | 'ADMIN';
@@ -85,12 +85,46 @@ export const {
         },
       }),
     ] : []),
-    // Email provider for production (or as fallback in dev)
-    ...(process.env.EMAIL_SERVER ? [
-      EmailProvider({
-        server: process.env.EMAIL_SERVER,
-        from: process.env.EMAIL_FROM || 'noreply@bayes-bedside.com',
-      }),
+    // Email provider for production using Resend
+    ...(process.env.RESEND_API_KEY ? [
+      {
+        id: 'resend',
+        name: 'Email',
+        type: 'email' as const,
+        maxAge: 24 * 60 * 60, // 24 hours
+        sendVerificationRequest: async ({ identifier: email, url }) => {
+          const resend = new Resend(process.env.RESEND_API_KEY);
+          
+          try {
+            await resend.emails.send({
+              from: process.env.EMAIL_FROM || 'Bayes at the Bedside <onboarding@resend.dev>',
+              to: email,
+              subject: 'Sign in to Bayes at the Bedside',
+              html: `
+                <div style="max-width: 600px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif;">
+                  <h1 style="color: #1e40af; margin-bottom: 20px;">Bayes at the Bedside</h1>
+                  <p style="font-size: 16px; color: #333; margin-bottom: 20px;">
+                    Click the button below to sign in to your account. This link will expire in 24 hours.
+                  </p>
+                  <a href="${url}" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-size: 16px;">
+                    Sign in to Bayes at the Bedside
+                  </a>
+                  <p style="font-size: 14px; color: #666; margin-top: 20px;">
+                    If you didn't request this email, you can safely ignore it.
+                  </p>
+                  <p style="font-size: 12px; color: #999; margin-top: 30px;">
+                    If the button doesn't work, copy and paste this link into your browser:<br/>
+                    <a href="${url}" style="color: #2563eb;">${url}</a>
+                  </p>
+                </div>
+              `,
+            });
+          } catch (error) {
+            console.error('Failed to send verification email:', error);
+            throw new Error('Failed to send verification email');
+          }
+        },
+      },
     ] : []),
   ],
   session: {
