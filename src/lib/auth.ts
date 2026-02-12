@@ -92,7 +92,7 @@ export const {
         name: 'Email',
         type: 'email' as const,
         maxAge: 24 * 60 * 60, // 24 hours
-        sendVerificationRequest: async ({ identifier: email, url }) => {
+        sendVerificationRequest: async ({ identifier: email, url }: { identifier: string; url: string }) => {
           const resend = new Resend(process.env.RESEND_API_KEY);
           
           try {
