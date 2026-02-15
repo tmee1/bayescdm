@@ -2,7 +2,6 @@ import NextAuth from 'next-auth';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { prisma } from '@/lib/db';
-import { Resend } from 'resend';
 
 // Define types (using strings since SQLite doesn't support enums)
 type UserRole = 'USER' | 'REVIEWER' | 'MODERATOR' | 'ADMIN';
@@ -85,7 +84,7 @@ export const {
         },
       }),
     ] : []),
-    // Email provider for production using Resend
+    // Email provider for production using Resend HTTP API
     ...(process.env.RESEND_API_KEY ? [
       {
         id: 'resend',
@@ -93,10 +92,13 @@ export const {
         type: 'email' as const,
         maxAge: 24 * 60 * 60, // 24 hours
         sendVerificationRequest: async ({ identifier: email, url }: { identifier: string; url: string }) => {
-          const resend = new Resend(process.env.RESEND_API_KEY);
-          
-          try {
-            await resend.emails.send({
+          const response = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
               from: process.env.EMAIL_FROM || 'Bayes at the Bedside <onboarding@resend.dev>',
               to: email,
               subject: 'Sign in to Bayes at the Bedside',
@@ -118,8 +120,11 @@ export const {
                   </p>
                 </div>
               `,
-            });
-          } catch (error) {
+            }),
+          });
+
+          if (!response.ok) {
+            const error = await response.text();
             console.error('Failed to send verification email:', error);
             throw new Error('Failed to send verification email');
           }
