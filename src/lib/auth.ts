@@ -28,109 +28,56 @@ declare module 'next-auth' {
   }
 }
 
-// Check if we're in development mode
-const isDevelopment = process.env.NODE_ENV === 'development' || process.env.AUTH_DEBUG === 'true';
-
 export const {
   handlers: { GET, POST },
   auth,
   signIn,
   signOut,
 } = NextAuth({
-  // Always include adapter - required for EmailProvider
   // Cast to any to avoid type mismatch with custom User fields
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   adapter: PrismaAdapter(prisma) as any,
   providers: [
-    // Credentials provider for development testing (must be first for dev)
-    ...(isDevelopment ? [
-      CredentialsProvider({
-        id: 'dev-login',
-        name: 'Development Login',
-        credentials: {
-          email: { label: 'Email', type: 'email' },
-        },
-        async authorize(credentials) {
-          if (!credentials?.email) return null;
-          
-          const email = credentials.email as string;
-          
-          // Find or create the user
-          let user = await prisma.user.findUnique({
-            where: { email },
-          });
-          
-          if (!user) {
-            // Create user with default role
-            user = await prisma.user.create({
-              data: {
-                email,
-                name: email.split('@')[0],
-                role: 'USER',
-                accountTier: 'USER',
-                reviewerStatus: 'NONE',
-              },
-            });
-          }
-          
-          return {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            role: user.role as UserRole,
-            accountTier: user.accountTier as AccountTier,
-            reviewerStatus: user.reviewerStatus as ReviewerStatus,
-          };
-        },
-      }),
-    ] : []),
-    // Email provider for production using Resend HTTP API
-    ...(process.env.RESEND_API_KEY ? [
-      {
-        id: 'resend',
-        name: 'Email',
-        type: 'email' as const,
-        maxAge: 24 * 60 * 60, // 24 hours
-        sendVerificationRequest: async ({ identifier: email, url }: { identifier: string; url: string }) => {
-          const response = await fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              from: process.env.EMAIL_FROM || 'Bayes at the Bedside <onboarding@resend.dev>',
-              to: email,
-              subject: 'Sign in to Bayes at the Bedside',
-              html: `
-                <div style="max-width: 600px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif;">
-                  <h1 style="color: #1e40af; margin-bottom: 20px;">Bayes at the Bedside</h1>
-                  <p style="font-size: 16px; color: #333; margin-bottom: 20px;">
-                    Click the button below to sign in to your account. This link will expire in 24 hours.
-                  </p>
-                  <a href="${url}" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-size: 16px;">
-                    Sign in to Bayes at the Bedside
-                  </a>
-                  <p style="font-size: 14px; color: #666; margin-top: 20px;">
-                    If you didn't request this email, you can safely ignore it.
-                  </p>
-                  <p style="font-size: 12px; color: #999; margin-top: 30px;">
-                    If the button doesn't work, copy and paste this link into your browser:<br/>
-                    <a href="${url}" style="color: #2563eb;">${url}</a>
-                  </p>
-                </div>
-              `,
-            }),
-          });
-
-          if (!response.ok) {
-            const error = await response.text();
-            console.error('Failed to send verification email:', error);
-            throw new Error('Failed to send verification email');
-          }
-        },
+    // Simple credentials provider - works in all environments
+    CredentialsProvider({
+      id: 'credentials',
+      name: 'Email',
+      credentials: {
+        email: { label: 'Email', type: 'email' },
       },
-    ] : []),
+      async authorize(credentials) {
+        if (!credentials?.email) return null;
+        
+        const email = credentials.email as string;
+        
+        // Find or create the user
+        let user = await prisma.user.findUnique({
+          where: { email },
+        });
+        
+        if (!user) {
+          // Create user with default role
+          user = await prisma.user.create({
+            data: {
+              email,
+              name: email.split('@')[0],
+              role: 'USER',
+              accountTier: 'USER',
+              reviewerStatus: 'NONE',
+            },
+          });
+        }
+        
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role as UserRole,
+          accountTier: user.accountTier as AccountTier,
+          reviewerStatus: user.reviewerStatus as ReviewerStatus,
+        };
+      },
+    }),
   ],
   session: {
     // Use JWT for credentials provider (required for CredentialsProvider)
