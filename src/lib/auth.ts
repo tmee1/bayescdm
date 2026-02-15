@@ -1,5 +1,4 @@
 import NextAuth from 'next-auth';
-import { PrismaAdapter } from '@auth/prisma-adapter';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { prisma } from '@/lib/db';
 
@@ -34,9 +33,7 @@ export const {
   signIn,
   signOut,
 } = NextAuth({
-  // Cast to any to avoid type mismatch with custom User fields
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  adapter: PrismaAdapter(prisma) as any,
+  // No adapter needed for CredentialsProvider - we handle users manually
   providers: [
     // Simple credentials provider - works in all environments
     CredentialsProvider({
